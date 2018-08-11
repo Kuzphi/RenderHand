@@ -25,7 +25,7 @@ class Split():
 				self.all += len(label)
 
 		self.Split()
-		pickle.dump(self,open('/home/liangjic/data/RenderHand/split.pickle','w'))
+		pickle.dump(self,open('./data/RenderHand/split.pickle','w'))
 	def Verify(self):
 		# for model in self.models:
 		# 	for action in self.actions:

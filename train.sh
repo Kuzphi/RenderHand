@@ -1,6 +1,6 @@
-CUDA_VISIBLE_DEVICES=0,1,2,3 python train.py -a openpose_hand \
+CUDA_VISIBLE_DEVICES=0,5 python train_RenderHand.py -a renderhand\
 	--checkpoint checkpoint/RenderHand/\
 	--num-classes 21\
-	--train-batch 16\
-	--test-batch 16\
+	--train-batch 8\
+	--test-batch 8\
 	-j 12\
