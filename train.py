@@ -52,6 +52,7 @@ def main(args):
 								lr=args.lr,
 								momentum=args.momentum,
 								weight_decay=args.weight_decay)
+	model = torch.nn.DataParallel(model).cuda()
 
 	# optionally resume from a checkpoint
 	title = 'OpenPose-' + args.arch
@@ -77,7 +78,7 @@ def main(args):
 		logger = Logger(join(args.checkpoint, 'log.txt'), title=title)
 		logger.set_names(['Epoch', 'LR', 'Train Loss', 'Val Loss', 'Train Acc', 'Val Acc'])
 
-	model = torch.nn.DataParallel(model).cuda()
+	
 
 	cudnn.benchmark = True
 	print('    Total params: %.2fM' % (sum(p.numel() for p in model.parameters())/1000000.0))
@@ -143,8 +144,6 @@ def main(args):
 	# savefig(os.path.join(args.checkpoint, 'Loss.eps'))
 	logger.plot(['Train Acc', 'Val Acc'])
 	savefig(os.path.join(args.checkpoint, 'Acc.eps'))
-
-
 
 def train(train_loader, model, criterion, optimizer, debug=False, flip=True):
 	batch_time = AverageMeter()
@@ -288,8 +287,9 @@ def validate(val_loader, model, criterion, num_classes, debug=False, flip=True):
 			else:
 				gt_win.set_data(gt_batch_img)
 				pred_win.set_data(pred_batch_img)
-
-			plt.savefig("./tmp/" + str(i) + ".png", dpi = 1000, bbox_inches='tight')
+			plt.plot()
+			plt.pause(.5)
+			# plt.savefig("./tmp/" + str(i) + ".png", dpi = 1000, bbox_inches='tight')
 
 		# measure accuracy and record loss
 		losses.update(loss.item(), inputs.size(0))

@@ -25,7 +25,7 @@ from src.models.OpenPose import openpose_hand
 #args = parser.parse_args()
 
 torch.set_num_threads(torch.get_num_threads())
-weight_name = '../checkpoint/RenderHand/model_best.pth.tar'
+weight_name = '../checkpoint/RenderHand/checkpoint.pth.tar'
 test_image = './sample_image/1.png'
 
 # visualize
@@ -55,13 +55,11 @@ def Hand_Inference(oriImg, Model = None, Name = ""):
 	num_classes = 21
 	if Model == None:
 		model = openpose_hand(num_classes = num_classes)
-		model = torch.nn.DataParallel(model)
+		model = torch.nn.DataParallel(model).cuda().float()
 		model.load_state_dict(torch.load(weight_name)['state_dict'])
-		model.cuda()
-		model.float()
 		model.eval()
 	else:
-		model = Model.hand_model
+		model = Model
 	param_, model_ = config_reader('config_hand')
 
 	#torch.nn.functional.pad(img pad, mode='constant', value=model_['padValue'])
@@ -69,7 +67,7 @@ def Hand_Inference(oriImg, Model = None, Name = ""):
 
 	#test_image = 'a.jpg'
 	with torch.no_grad():
-		imageToTest = Variable(T.transpose(T.transpose(T.unsqueeze(torch.from_numpy(oriImg).float(),0),2,3),1,2)).cuda()
+		imageToTest = Variable(T.unsqueeze(torch.from_numpy(oriImg.transpose(2,0,1)).float(),0)).cuda()
 		multiplier = [x * model_['boxsize'] / oriImg.shape[0] for x in param_['scale_search']]
 		heatmap_avg = torch.zeros((len(multiplier),num_classes,oriImg.shape[0], oriImg.shape[1])).cuda()
 	# paf_avg = torch.zeros((len(multiplier),38,oriImg.shape[0], oriImg.shape[1])).cuda()
@@ -80,26 +78,35 @@ def Hand_Inference(oriImg, Model = None, Name = ""):
 	# tic = time.time()
 	for m in range(len(multiplier)):
 		scale = multiplier[m]
-		h = int(oriImg.shape[0]*scale)
-		w = int(oriImg.shape[1]*scale)
-		pad_h = 0 if (h%model_['stride']==0) else model_['stride'] - (h % model_['stride']) 
-		pad_w = 0 if (w%model_['stride']==0) else model_['stride'] - (w % model_['stride'])
-		new_h = h+pad_h
-		new_w = w+pad_w
+		# h = int(oriImg.shape[0]*scale)
+		# w = int(oriImg.shape[1]*scale)
+		# pad_h = 0 if (h%model_['stride']==0) else model_['stride'] - (h % model_['stride']) 
+		# pad_w = 0 if (w%model_['stride']==0) else model_['stride'] - (w % model_['stride'])
+		# new_h = h+pad_h
+		# new_w = w+pad_w
 
-		imageToTest = cv2.resize(oriImg, (0,0), fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
-		imageToTest_padded, pad = util.padRightDownCorner(imageToTest, model_['stride'], model_['padValue'])
-		imageToTest_padded = np.transpose(np.float32(imageToTest_padded[:,:,:,np.newaxis]), (3,2,0,1)) / 256.0 - 0.5
+		# imageToTest = cv2.resize(oriImg, (0,0), fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+		# imageToTest_padded, pad = util.padRightDownCorner(imageToTest, model_['stride'], model_['padValue'])
+		# imageToTest_padded = np.transpose(np.float32(imageToTest_padded[:,:,:,np.newaxis]), (3,2,0,1)) / 256.0 - 0.5
+		imageToTest_padded = oriImg[:,:,:,np.newaxis].transpose(3,2,0,1).astype(np.float32) / 256.0 - 0.5
 
-		# plt.imshow(imageToTest_padded[0,:,:,:].transpose(1,2,0)[:,:,::-1] + 0.5)
+
 		# plt.pause(10)
+		# plt.imshow(imageToTest_padded.transpose(0,2,3,1)[0,:,:,::-1] + 0.5)
+		with torch.no_grad():		
+			feed = Variable(T.from_numpy(imageToTest_padded)).cuda()
+			output2 = model(feed)[-1]
 
-
-		feed = Variable(T.from_numpy(imageToTest_padded)).cuda()      
-		output2 = model(feed)[-1]
 		heatmap = nn.Upsample((oriImg.shape[0], oriImg.shape[1]), mode = 'bilinear', align_corners=True).cuda()(output2)     
 		heatmap_avg[m] = heatmap[0].data
-		
+		for output in output2[0]:
+			xxx = imageToTest_padded[0,:,:,:].transpose(1,2,0)[:,:,::-1] + 0.5
+			xxx = cv2.resize(xxx, (100,100))
+			print(output.shape)
+			plt.imshow(xxx)
+			plt.imshow(output, alpha = 0.3)
+			plt.plot()
+			plt.pause(1)
 		
 	# toc =time.time()
 	# print 'time is %.5f'%(toc-tic) 
@@ -120,8 +127,9 @@ def Hand_Inference(oriImg, Model = None, Name = ""):
 	for part in range(21):
 		map_ori = heatmap_avg[:,:,part]
 		# plt.imshow(oriImg[:,:,[2,1,0]])
-		# plt.imshow(heatmap_avg[:,:,part], alpha=.5)
-		# plt.savefig("demo_heat/6/test_part_"+ str(part) +"for" + '_'.join(Name.split('/')[-1].split(".")) + ".png")
+		# plt.imshow(heatmap_avg[:,:,part], alpha=.3)
+		# plt.savefig("demo_heat/test_part_"+ str(part) + ".png")
+		# plt.savefig("demo_heat/test_part_"+ str(part) +"for" + '_'.join(Name.split('/')[-1].split(".")) + ".png")
 		map = gaussian_filter(map_ori, sigma=3)
 
 		map_left = np.zeros(map.shape)
@@ -153,7 +161,7 @@ def Hand_Inference(oriImg, Model = None, Name = ""):
 	ans = []
 	for i in range(21):
 		if len(all_peaks[i]) == 0:
-			ans.append(-1)
+			ans.append([0,0,0])
 			continue
 		Max = 0
 		for j in range(len(all_peaks[i])):
@@ -304,21 +312,30 @@ if __name__ == '__main__':
 	# oriImg = cv2.imread(test_image) # B,G,R order
 	# joint = Hand_Inference(oriImg)
 	# canvas = cv2.imread(test_image) # B,G,R order
-	for i in split.valid:
-		print i
-		oriImg, label = split.get_sample(i)
-		canvas = oriImg.copy()
-		canvas = draw_hand(canvas, label)
-		plt.subplot(1,2,1)
-		plt.imshow(canvas[:,:,::-1])
+	model = openpose_hand(num_classes = 21)
+	model = torch.nn.DataParallel(model).cuda().float()
+	model.load_state_dict(torch.load(weight_name)['state_dict'])
+	oriImg = cv2.imread('./hands_green.jpeg')
+	oriImg = cv2.resize(oriImg,(800,800))
+	joint = Hand_Inference(oriImg, Model = model)
+	canvas = oriImg.copy()
+	canvas = draw_hand(canvas, joint, Edge = True)
+	plt.imshow(canvas[:,:,::-1])
+	plt.pause(1)
+	# for i in split.valid:
+	# 	print i
+	# 	oriImg, label = split.get_sample(i)
+	# 	canvas = oriImg.copy()
+	# 	canvas = draw_hand(canvas, label)
+	# 	plt.subplot(1,2,1)
+	# 	plt.imshow(canvas[:,:,::-1])
 
-
-		joint = Hand_Inference(oriImg)
-		joint = np.array(joint).astype(np.int)
-		canvas = oriImg.copy()
-		canvas = draw_hand(canvas, joint)
-		plt.subplot(1,2,2)
-		plt.imshow(canvas[:,:,::-1])
-
-		plt.pause(1)
+	# 	joint = Hand_Inference(oriImg, Model = model, Name = str(i))
+	# 	# print joint
+	# 	joint = np.array(joint).astype(np.int)
+	# 	canvas = oriImg.copy()
+	# 	canvas = draw_hand(canvas, joint, Edge = True)
+	# 	plt.subplot(1,2,2)
+	# 	plt.imshow(canvas[:,:,::-1])
+	# 	plt.pause(1)
 	cv2.imwrite('result.png',canvas)
