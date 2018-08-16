@@ -68,7 +68,7 @@ def main(args):
 			logger = Logger(join(args.checkpoint, 'log.txt'), title=title, resume=True)
 		else:
 			print("=> no checkpoint found at '{}'".format(args.resume))
-	else:        
+	else:
 		if isfile(args.model_weight):
 			weight_dict = torch.load(args.model_weight)
 			# print (weight_dict.keys())

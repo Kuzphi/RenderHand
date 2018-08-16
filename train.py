@@ -78,8 +78,6 @@ def main(args):
 		logger = Logger(join(args.checkpoint, 'log.txt'), title=title)
 		logger.set_names(['Epoch', 'LR', 'Train Loss', 'Val Loss', 'Train Acc', 'Val Acc'])
 
-	
-
 	cudnn.benchmark = True
 	print('    Total params: %.2fM' % (sum(p.numel() for p in model.parameters())/1000000.0))
 
@@ -91,7 +89,9 @@ def main(args):
 		split = pickle.load(open('./data/RenderHand/split.pickle'))
 	else:
 		split = Split('/home/liangjic/data/RenderHand/', Hand_Model = Select_Models, Hand_Action = Select_Actinos)
-	
+		
+	split.Split('Camera', [('xy', 0)], [('xz', 0)])
+
 	train_loader = torch.utils.data.DataLoader(
 		datasets.Hand(split),
 		batch_size=args.train_batch, shuffle=True,
@@ -316,7 +316,6 @@ def validate(val_loader, model, criterion, num_classes, debug=False, flip=True):
 
 	bar.finish()
 	return losses.avg, acces.avg, predictions
-
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')

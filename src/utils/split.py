@@ -9,7 +9,7 @@ class Split():
 		self.models = Hand_Model
 		self.actions = Hand_Action
 		self.all = 0
-		self.order = []
+		self.order = {}
 		self.labels = {}
 		for model in self.models:
 			for action in self.actions:
@@ -21,7 +21,7 @@ class Split():
 
 				label = json.load(open(labelpath))
 				self.labels[model + action] = label
-				self.order.append([len(label), model, action])
+				self.order[(model,action)] = [self.all, self.all + len(label)]
 				self.all += len(label)
 
 		self.Split()
@@ -61,18 +61,53 @@ class Split():
 		for i in self.train:
 			self.get_sample(i)
 
-	def Split(self, split_type = 'random'):
+	def Split(self, split_type = 'random', Train = None, Valid = None):
 		gap = int(self.all * 0.2)
 		permu = np.arange(self.all)
-		np.random.shuffle(permu)
-		self.valid = permu[:gap]
-		self.train = permu[gap:]
+		self.valid = []
+		self.train = []
+		if split_type == 'random':
+			np.random.shuffle(permu)
+			self.valid = permu[:gap]
+			self.train = permu[gap:]
+
+		elif split_type == 'Action':
+			cnt = 0
+			for (model, action) in self.order:
+				start, end = self.order[(model, action)]
+				name = model + action
+				if name in Train:
+					self.train += range(start, end)
+				if name in Valid:
+					self.valid += range(start, end)
+
+		elif split_type == 'Camera':
+			for (model, action) in self.order:
+				start, end = self.order[(model, action)]
+				for index in range(start, end):
+					meta = self.labels[model + action][str(index - start).zfill(7)]['meta']
+					info = (meta['camera']['direction'], meta['camera']['step'])
+					if info in Train:
+						self.train.append(index)
+					if info in Valid:
+						self.valid.append(index)
+			assert(len(self.train) > 0)
+			assert(len(self.valid) > 0)
+		
+		self.train = np.array(self.train)
+		self.valid = np.array(self.valid)
+		np.random.shuffle(self.train)
+		np.random.shuffle(self.valid)
+
+		return self.train, self.valid
+		
 
 	def get(self,index):
-		for item in self.order:
-			if index < item[0]:
-				return (str(index).zfill(7), item[1], item[2])
-			index -= item[0]
+		for (model, action) in self.order:
+			start, end = self.order[(model, action)]
+			if index >= start and index < end:
+				return (str(index - start).zfill(7), model, action)
+			
 
 	def get_sample(self, index):
 		w = self.get(index)

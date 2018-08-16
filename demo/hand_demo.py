@@ -19,13 +19,14 @@ from config_reader import config_reader
 from scipy.ndimage.filters import gaussian_filter
 sys.path.append("..")
 from src.models.OpenPose import openpose_hand
+from src.models.RenderHand import renderhand
 #parser = argparse.ArgumentParser()
 #parser.add_argument('--t7_file', required=True)
 #parser.add_argument('--pth_file', required=True)
 #args = parser.parse_args()
 
 torch.set_num_threads(torch.get_num_threads())
-weight_name = '../checkpoint/RenderHand/checkpoint.pth.tar'
+weight_name = '../checkpoint/RenderHand-Model1TapValid/model_best.pth.tar'
 test_image = './sample_image/1.png'
 
 # visualize
@@ -99,14 +100,14 @@ def Hand_Inference(oriImg, Model = None, Name = ""):
 
 		heatmap = nn.Upsample((oriImg.shape[0], oriImg.shape[1]), mode = 'bilinear', align_corners=True).cuda()(output2)     
 		heatmap_avg[m] = heatmap[0].data
-		for output in output2[0]:
-			xxx = imageToTest_padded[0,:,:,:].transpose(1,2,0)[:,:,::-1] + 0.5
-			xxx = cv2.resize(xxx, (100,100))
-			print(output.shape)
-			plt.imshow(xxx)
-			plt.imshow(output, alpha = 0.3)
-			plt.plot()
-			plt.pause(1)
+		# for output in output2[0]:
+		# 	xxx = imageToTest_padded[0,:,:,:].transpose(1,2,0)[:,:,::-1] + 0.5
+		# 	xxx = cv2.resize(xxx, (100,100))
+		# 	print(output.shape)
+		# 	plt.imshow(xxx)
+		# 	plt.imshow(output, alpha = 0.3)
+		# 	plt.plot()
+		# 	plt.pause(1)
 		
 	# toc =time.time()
 	# print 'time is %.5f'%(toc-tic) 
@@ -175,7 +176,7 @@ def Hand_Inference(oriImg, Model = None, Name = ""):
 	return ans
 
 def tmp_Hand_Inference(oriImg):
-	model = openpose_hand()     
+	model = renderhand()     
 	model.load_state_dict(torch.load(weight_name))
 	model.cuda()
 	model.float()
@@ -308,13 +309,14 @@ if __name__ == '__main__':
 	import pickle
 	split = pickle.load(open('../data/RenderHand/split.pickle'))
 	split.Data_Path = '/home/liangjic/data/RenderHand/'
+	model = renderhand(num_classes = 21)
+	model = torch.nn.DataParallel(model).cuda().float()
+	model.load_state_dict(torch.load(weight_name)['state_dict'])
+
 	plt.figure()
 	# oriImg = cv2.imread(test_image) # B,G,R order
 	# joint = Hand_Inference(oriImg)
 	# canvas = cv2.imread(test_image) # B,G,R order
-	model = openpose_hand(num_classes = 21)
-	model = torch.nn.DataParallel(model).cuda().float()
-	model.load_state_dict(torch.load(weight_name)['state_dict'])
 	oriImg = cv2.imread('./hands_green.jpeg')
 	oriImg = cv2.resize(oriImg,(800,800))
 	joint = Hand_Inference(oriImg, Model = model)
